@@ -1,0 +1,8 @@
+<objectAnimator xmlns:android="http://schemas.android.com/apk/res/android" android:propertyName="scaleY" android:duration="3600" android:repeatCount="infinite" android:valueType="floatType">
+    <propertyValuesHolder android:propertyName="scaleY" android:valueType="floatType">
+        <keyframe android:fraction="0" android:value="1" />
+        <keyframe android:fraction="0.88" android:value="1" />
+        <keyframe android:fraction="0.94" android:value="0.08" />
+        <keyframe android:fraction="1" android:value="1" />
+    </propertyValuesHolder>
+</objectAnimator>

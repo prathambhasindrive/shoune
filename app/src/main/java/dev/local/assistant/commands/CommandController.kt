@@ -1,0 +1,167 @@
+package dev.local.assistant.commands
+import dev.local.assistant.inference.LocalBrain
+import dev.local.assistant.speech.SpokenNumbers
+
+import dev.local.assistant.*
+import android.content.Context
+import android.content.ContextWrapper
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
+import android.net.Uri
+import android.provider.AlarmClock
+import java.text.DateFormat
+import java.util.Date
+
+
+/** Shared command policy for foreground and background speech; all calls require confirmation. */
+class CommandController(
+    context: Context,
+    private val reply: (String) -> Unit,
+    private val launch: (Intent) -> Unit,
+    private val requestPermission: (String) -> Unit,
+    private val stop: () -> Unit,
+    private val isUnlocked: () -> Boolean = { dev.local.assistant.security.DeviceSecurity.unlocked(context) }
+) : ContextWrapper(context) {
+    private var pendingCall: String? = null
+    private var callDeadline = 0L
+    var awaitingConfirmation = false
+        private set
+    private var closed = false
+    fun clearPending() { pendingCall = null; awaitingConfirmation = false }
+    fun close() { closed = true; clearPending() }
+    override fun startActivity(intent: Intent) = launch(intent)
+    fun execute(raw: String) {
+        if (closed) return
+        val text = CommandText.normalize(raw)
+        try {
+            // While locked, permit only torch, time and stopping. Never speak private model answers.
+            if (!isUnlocked() &&
+                text !in setOf("flashlight on", "flashlight off", "time", "what time is it", "stop", "stop listening")) {
+                clearPending(); reply("Unlock your phone to use this command."); return
+            }
+            pendingCall?.let { number ->
+                if (android.os.SystemClock.elapsedRealtime() > callDeadline) {
+                    pendingCall = null; awaitingConfirmation = false; reply("That call request expired. Please ask again."); return
+                }
+                when (text) {
+                    "confirm call" -> {
+                        pendingCall = null
+                        awaitingConfirmation = false
+                        startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:" + number)))
+                        reply("Calling"); return
+                    }
+                    "cancel", "no", "stop" -> { pendingCall = null; awaitingConfirmation = false; reply("Call cancelled."); return }
+                    else -> { awaitingConfirmation = true; reply("Say confirm call or cancel."); return }
+                }
+            }
+            awaitingConfirmation = false
+            when {
+                text.isBlank() -> { awaitingConfirmation = true; reply("I’m listening. What do you need?") }
+                text == "local models" || text == "open local models" -> startActivity(Intent(this, ModelsActivity::class.java))
+                text == "cancel answer" -> { LocalBrain.cancel(); reply("Answer cancelled.") }
+                text == "permissions" || text == "open permissions" -> startActivity(Intent(this, PermissionsActivity::class.java))
+                text in listOf("go home", "home", "go back", "back", "recent apps", "show notifications", "open notifications", "quick settings", "scroll down", "scroll up") -> {
+                    val access = PhoneAccessibilityService.current
+                    reply(if (access == null) "Enable Shoune accessibility in Permissions" else if (access.control(text)) "Done" else "That control is unavailable on this screen")
+                }
+                text == "how many notifications" || text == "notification count" -> {
+                    val access = ShouneNotificationService.current
+                    reply(if (access == null) "Enable notification access in Permissions" else "You have ${access.count()} notifications")
+                }
+                text == "stop listening" || text == "stop" -> { stop(); reply("Paused.") }
+                text.startsWith("open ") -> {
+                    val name = text.removePrefix("open ").trim()
+                    val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                    val matches = packageManager.queryIntentActivities(query, 0).filter {
+                        AppNames.key(it.loadLabel(packageManager).toString()) == AppNames.key(name)
+                    }
+                    if (matches.size != 1) {
+                        reply("Use the exact app name. Found " + matches.size + " matches for " + name); return
+                    }
+                    val app = matches.single().activityInfo
+                    startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                        .setClassName(app.packageName, app.name))
+                    reply("Opened " + name)
+                }
+                text == "volume up" || text == "volume down" -> {
+                    val audio = getSystemService(AUDIO_SERVICE) as AudioManager
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                        if (text.endsWith("up")) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER,
+                        AudioManager.FLAG_SHOW_UI)
+                    reply("Media volume adjusted.")
+                }
+                text == "flashlight on" || text == "flashlight off" -> {
+                    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermission(Manifest.permission.CAMERA)
+                        reply("Grant camera permission, then repeat the command."); return
+                    }
+                    val camera = getSystemService(CAMERA_SERVICE) as CameraManager
+                    val id = camera.cameraIdList.firstOrNull {
+                        camera.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                    }
+                    if (id == null) reply("No flashlight found.")
+                    else { camera.setTorchMode(id, text.endsWith("on")); reply(text) }
+                }
+                text.matches(Regex("set timer for .+ minutes?")) -> {
+                    val duration = text.removePrefix("set timer for ").replace(Regex(" minutes?$"), "")
+                    val minutes = SpokenNumbers.minutes(duration)
+                    if (minutes !in 1..1440) { reply("Choose between 1 and 1440 minutes."); return }
+                    startActivity(Intent(AlarmClock.ACTION_SET_TIMER)
+                        .putExtra(AlarmClock.EXTRA_LENGTH, minutes * 60)
+                        .putExtra(AlarmClock.EXTRA_SKIP_UI, false))
+                }
+                text.startsWith("call ") -> {
+                    var number = SpokenNumbers.phone(text.removePrefix("call "))
+                    if (number.isEmpty() && checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+                        val name = text.removePrefix("call ").trim()
+                        val phones = android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                        val names = android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+                        val numbers = android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER
+                        val matches = mutableSetOf<String>()
+                        contentResolver.query(phones, arrayOf(numbers), "$names = ? COLLATE NOCASE", arrayOf(name), null)?.use { cursor ->
+                            while (cursor.moveToNext()) matches.add(cursor.getString(0).replace(Regex("[ ()-]"), ""))
+                        }
+                        if (matches.size > 1) { reply("That contact has multiple numbers. Please say the phone number."); return }
+                        number = matches.singleOrNull().orEmpty()
+                    }
+                    if (!number.matches(Regex("\\+?[0-9]{3,15}"))) {
+                        reply("Say call followed by a phone number, one digit at a time."); return
+                    }
+                    if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermission(Manifest.permission.CALL_PHONE)
+                        reply("Allow phone access, then ask me again."); return
+                    }
+                    pendingCall = number
+                    callDeadline = android.os.SystemClock.elapsedRealtime() + 30000
+                    awaitingConfirmation = true
+                    reply("Call " + number.toCharArray().joinToString(" ") + "? Say confirm call, or cancel.")
+                }
+                text == "what time is it" || text == "time" ->
+                    reply(DateFormat.getTimeInstance(DateFormat.SHORT).format(Date()))
+                else -> {
+                    if (LocalBrain.selected(this) == null) {
+                        reply("Choose a model on the Local Models page to enable offline AI answers.")
+                    } else {
+                        reply("Thinking on your phone…")
+                        LocalBrain.answer(this, text) { result ->
+                            if (!closed && isUnlocked()) {
+                                reply(result.getOrElse { it.message ?: "The model could not answer. Try a smaller model." })
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (error: SecurityException) {
+            reply("Allow this action in Shoune Permissions, then try again.")
+        } catch (error: IllegalStateException) {
+            reply(error.message ?: "This action is unavailable right now.")
+        } catch (error: Exception) {
+            reply("Android could not complete this action. Check permissions and installed apps.")
+        }
+    }
+
+}

@@ -1,0 +1,3 @@
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android" android:drawable="@drawable/shoune_mark">
+    <target android:name="eyes" android:animation="@animator/bot_blink" />
+</animated-vector>
