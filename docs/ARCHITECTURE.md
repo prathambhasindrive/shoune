@@ -10,11 +10,15 @@
 | `commands/CommandController.kt` | Shared foreground/background command routing, permissions, call confirmation and model fallback |
 | `commands/AppNames.kt` | Stable app-label comparison without speculative fuzzy matching |
 | `speech/WakePhrase.kt` | Optional Hey and phonetic wake-name aliases |
+| `speech/AssistantPreferences.kt` | Commander name and installed offline TTS voice selection |
+| `speech/SpeakerVerifier.kt` | CAMPPlus enrollment embeddings and local similarity checks |
+| `speech/OfflineSpeechLoop.kt` | Single background microphone owner feeding Vosk and speaker verification |
 | `speech/SpokenNumbers.kt` | Bounded duration and digit-by-digit phone parsing |
 | `speech/VoiceSessionState.kt` | Main-thread-only live status; no conversation persistence |
 | `inference/LocalBrain.kt` | Serialized model import/load/generation/unload and cancellation |
 | `ModelsActivity.kt` | Model catalogue, external downloads, SAF import and local model library |
 | `PermissionsActivity.kt` | Permission status and Android settings links |
+| `PersonalizationActivity.kt` / `VoiceEnrollmentActivity.kt` | Offline voice choice, commander name and three-sample speaker enrollment |
 | `PhoneAccessibilityService.kt` | Android-protected global navigation and scroll actions |
 | `ShouneNotificationService.kt` | Android-protected notification counts |
 | `res/` | XML home UI, adaptive launcher icon, styles and service metadata |

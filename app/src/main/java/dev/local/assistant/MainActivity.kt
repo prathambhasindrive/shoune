@@ -96,10 +96,8 @@ class MainActivity : Activity(), RecognitionListener {
             runOnUiThread {
                 if (!destroyed && result == TextToSpeech.SUCCESS) {
                     val engine = tts
-                    val voice = engine?.voices?.firstOrNull {
-                        it.locale.language == "en" && !it.isNetworkConnectionRequired
-                    }
-                    offlineVoice = voice != null && engine?.setVoice(voice) == TextToSpeech.SUCCESS
+                    val voice = engine?.let { dev.local.assistant.speech.AssistantPreferences.applyVoice(this, it) }
+                    offlineVoice = voice != null
                     if (model != null && !acceptingSpeech && !WakeListeningService.running && status.text.toString().startsWith("Ready."))
                         show(if (offlineVoice) "Ready. What can I help you with?" else "Ready. Set up spoken replies in Permissions for an offline English voice.")
                 }

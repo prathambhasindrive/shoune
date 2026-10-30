@@ -28,6 +28,7 @@ class PermissionsActivity : Activity() {
         }
         label("Shoune permissions", 28f)
         label("You choose each permission. Android will ask you to approve access in its own screens.", 14f)
+        root.addView(Button(this).apply { text = "Voice & commander name"; isAllCaps = false; setOnClickListener { open(Intent(this@PermissionsActivity, PersonalizationActivity::class.java)) } })
         fun runtime(title: String, detail: String, permission: String) = row(title, detail, allowed(permission)) {
             if (allowed(permission)) open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
             else requestPermissions(arrayOf(permission), 20)

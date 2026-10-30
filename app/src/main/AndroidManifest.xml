@@ -17,6 +17,8 @@
     </queries>
     <application android:label="Shoune" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false" android:usesCleartextTraffic="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true">
         <activity android:name=".ModelsActivity" android:exported="false" />
+        <activity android:name=".PersonalizationActivity" android:exported="false" />
+        <activity android:name=".VoiceEnrollmentActivity" android:exported="false" />
         <activity android:name=".PermissionsActivity" android:exported="false" />
         <service android:name=".PhoneAccessibilityService" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="Shoune">
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>

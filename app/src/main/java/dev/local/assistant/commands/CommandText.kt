@@ -20,6 +20,10 @@ object CommandText {
             text.startsWith("dial ") -> "call " + text.removePrefix("dial ")
             text == "increase volume" || text == "turn up the volume" -> "volume up"
             text == "decrease volume" || text == "turn down the volume" -> "volume down"
+            text == "resume music" || text == "play music" -> "media play"
+            text == "pause music" || text == "stop music" -> "media pause"
+            text == "next song" || text == "skip song" -> "media next"
+            text == "previous song" -> "media previous"
             else -> text
         }
     }

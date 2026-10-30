@@ -5,18 +5,21 @@ This is a personal-use V1, not a completed security audit. Do not report private
 ## Protected boundaries
 
 - No INTERNET permission, no remote command listener, no audio recording archive. External model downloads run in the browser. Generated model text never becomes a phone action.
-- Wake names are not authentication: anyone nearby or a recording can say them. Calls, navigation, app opening, contacts, notifications and AI responses require an unlocked device. On a locked phone only time, flashlight and stop are allowed.
+- Wake names are not authentication: anyone nearby or a recording can say them. Optional CAMPPlus speaker matching adds a local similarity filter, but recordings and similar speakers may still pass. Calls, navigation, app opening, contacts, notifications and AI responses require an unlocked device. On a locked phone only time, flashlight, media transport and stop are allowed.
 - Every call requires the exact spoken phrase `confirm call` within 30 seconds. Generic yes/confirm responses do not dial. Pending foreground confirmations are cleared when leaving the screen and after shutdown; lock state is checked again at execution.
 - All app screens use FLAG_SECURE to restrict screenshots, casting and recent-task previews. Android 12+ hides overlay windows; obscured touches are filtered. These are Android best-effort defenses, not protection from root or a compromised OS.
 - Foreground notifications contain only generic listening status, never utterances, numbers or generated answers. Live conversation UI exists only in process memory.
 - Private Activities and the microphone service are not exported. Accessibility and notification listener services require Android system binding permissions. Pending intents are immutable and explicit.
 - App backup and Android cloud/device transfer are excluded; cleartext traffic is disabled as defense in depth. No unrestricted storage permission or clipboard access.
 - Local model import uses the system document picker, app-private storage, space and size limits, a temporary file, GGUF header/version checking and atomic rename. Speech ZIP import rejects path traversal and bounds expanded size and entry count.
+- Speaker enrollment stores only a normalized embedding in app-private storage; raw samples are discarded. Backups and device transfer remain disabled.
 - The Gradle wrapper distribution has an official SHA256 pin. Git excludes local SDK paths, IDE caches, environment files, native model downloads, APKs and signing keys.
 
 ## Limitations and next work
 
-Voice recognition can mishear and is not speaker verification. Even with confirmation, a replay attack on an unlocked phone remains possible. Device unlock is not per-call biometric authentication. Native GGUF parsing is not sandboxed in a separate process; load only trusted publisher models. Header validation does not prove a model is safe. Third-party native dependencies still need ongoing vulnerability review; no independent penetration test has been performed.
+Voice recognition and speaker similarity can both misclassify. Even with confirmation, a replay attack on an unlocked phone remains possible. Device unlock is not per-call biometric authentication. Native GGUF and ONNX parsing are not sandboxed in a separate process; load only bundled or trusted publisher models. Third-party native dependencies still need ongoing vulnerability review; no independent penetration test has been performed.
+
+Accessibility automation targets exactly one visible label and refuses ambiguous matches. Text entry requires an already focused editable field, rejects password fields and is length-bounded. Coordinate tapping, screenshots, hidden selectors and automatic Send/Share/Buy controls are not exposed. Third-party layouts can change and their security rules still apply.
 
 The test APK is debuggable and uses the Android debug key. It is for this personal device. Production distribution requires a private release signing key, a non-debuggable release build, dependency auditing and separate release testing. Never commit that key or its passwords.
 

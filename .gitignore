@@ -19,3 +19,4 @@ checks/build/
 captures/
 checks/kotlin-build/
 *.class
+*.hprof

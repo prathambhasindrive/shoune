@@ -18,6 +18,10 @@ Personal Kotlin Android voice assistant for unrooted Android 8+ devices. Active 
 - “Shoune go home”, “go back”, “recent apps”, “scroll down”, “quick settings”, “show notifications”. Accessibility must be enabled.
 - “Shoune how many notifications” with notification access enabled.
 - “Shoune open local models”, “open permissions”, “cancel answer”.
+- Flexible introductions work whenever the name is present: “Hey Shoune”, “Hello Shoune”, “Good morning Shoune” and similar phrases.
+- “Play Daft Punk on Spotify”, “play a Kotlin tutorial on YouTube”, “open Instagram profile openai”, or “open WhatsApp chat with” followed by a phone number.
+- “Play music”, “pause music”, “next song”, and “previous song” control an active media session when notification access is enabled.
+- With Accessibility enabled and the phone unlocked: say “tap” followed by one exact visible label, or “type” followed by text after selecting a non-password field. Shoune does not press Send automatically.
 
 Commands work without an LLM. Conversational answers require a separately selected model. This V1 uses a bounded command vocabulary; arbitrary natural-language phone workflows are not implemented.
 
@@ -26,6 +30,12 @@ Commands work without an LLM. Conversational answers require a separately select
 The separate **Local models** page contains official Qwen GGUF download and license links. Download in your browser, return to Shoune, choose **Import downloaded GGUF**, then **Use this model**. The app validates the file and loads it through Llamatik/llama.cpp. Start with Qwen 2.5 0.5B Q4_K_M (491 MB). The 1.5B option needs more memory and is not performance-tested here. User-selected single GGUF instruct files are supported up to 2 GB, subject to engine compatibility. Model files are not included in the APK.
 
 Imports copy into private app storage; removing an imported model does not delete the browser download. Text generation stays local, is limited to short responses, and never dispatches device actions. Shoune has no INTERNET permission. Browser downloads and launched third-party apps have their own network behavior.
+
+## Voice and identity
+
+Open **Permissions → Voice & commander name**. Set a name such as Pratham; a wake-only phrase answers “Yes Pratham.” Choose and preview any offline English voice installed in Android. Network-only voices are excluded. The bundled Vosk small English model performs speech-to-text fully offline from first launch; a larger Vosk ZIP can still be imported through the repair option.
+
+Optional speaker matching uses the bundled sherpa-onnx CAMPPlus English speaker model. Enrollment records three four-second phrases, converts them into one local voiceprint, and discards raw audio. It reduces accidental wakes but is not authentication and can be fooled by recordings or a similar voice. Calls and private actions still require the phone to be unlocked and use their own confirmation.
 
 ## Build and verification
 
@@ -42,7 +52,7 @@ See `docs/ARCHITECTURE.md` for extension points and `docs/TESTING.md` for test c
 
 ## Platform limits
 
-Background listening uses a visible microphone foreground service and a partial wake lock, with battery cost. This is software recognition, not a dedicated low-power hardware hotword. Android/Realme can terminate it; force-stop and reboot require reopening the app. Do not describe it as guaranteed 24/7 availability. Background app launches/calls require enabled Accessibility and an unlocked phone. While locked, only time, flashlight and stopping are accepted; private model answers and notification controls are blocked. The app cannot bypass the lock screen or obtain root-only controls.
+Background listening uses a visible microphone foreground service and a partial wake lock, with battery cost. Listening continues while the keyguard is showing and the screen is off once the service was started while Shoune was visible. This is software recognition, not a dedicated low-power hardware hotword. Android/Realme can terminate it; force-stop and reboot require reopening the app. Do not describe it as guaranteed 24/7 availability. Background app launches/calls require enabled Accessibility and an unlocked phone. While locked, only time, flashlight, media transport and stopping are accepted. Android does not allow this ordinary unrooted app to bypass the keyguard for WhatsApp, Instagram, calls, typing, or other private UI automation.
 
 The English recognizer maps Shoune to phonetic aliases such as Shawn, Sean or shown. Your pronunciation/noise conditions still need hands-on testing; similarly pronounced speech can cause false wakes.
 

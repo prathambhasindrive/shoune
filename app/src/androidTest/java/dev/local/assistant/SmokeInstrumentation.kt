@@ -18,13 +18,30 @@ import java.io.File
 class SmokeInstrumentation : Instrumentation() {
     private var testAudio = false
     private var testModel = false
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); testAudio = arguments?.getString("audio") == "true"; testModel = arguments?.getString("model") == "true"; start() }
+    private var prepareLockTest = false
+    override fun onCreate(arguments: Bundle?) {
+        super.onCreate(arguments)
+        testAudio = arguments?.getString("audio") == "true"
+        testModel = arguments?.getString("model") == "true"
+        prepareLockTest = arguments?.getString("lock") == "true"
+        start()
+    }
 
     override fun onStart() {
         val result = Bundle()
         var activity: Activity? = null
         try {
             val context = targetContext
+            if (prepareLockTest) {
+                context.getSharedPreferences("shoune", 0).edit().putBoolean("background", true).commit()
+                context.startForegroundService(Intent(context, WakeListeningService::class.java))
+                val deadline = SystemClock.elapsedRealtime() + 30000
+                while (!WakeListeningService.running && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(100)
+                check(WakeListeningService.running) { "Foreground wake service did not start" }
+                result.putString("stream", "PASS: production wake service prepared for physical lock test.\n")
+                finish(Activity.RESULT_OK, result)
+                return
+            }
             val listeningPrefs = context.getSharedPreferences("shoune", 0)
             listeningPrefs.edit().remove("defaultListeningV2").putBoolean("background", false).commit()
             dev.local.assistant.speech.ListeningPreferences.initialize(context)
@@ -52,7 +69,18 @@ class SmokeInstrumentation : Instrumentation() {
                 val decoded = segments.joinToString(" ").trim()
                 check(WakePhrase.command(decoded) != null) { "Wake alias missed: $decoded" }
                 check(dev.local.assistant.commands.CommandText.normalize(decoded) == "flashlight on") { "Command missed: $decoded" }
-                result.putString("stream", "PASS: synthetic 16 kHz speech decoded on device: $decoded\n")
+                val pcm = File(context.filesDir, "test-speech.pcm").readBytes()
+                val samples = FloatArray(pcm.size / 2) { index ->
+                    val low = pcm[index * 2].toInt() and 0xff
+                    val high = pcm[index * 2 + 1].toInt()
+                    ((high shl 8) or low).toShort() / 32768f
+                }
+                val embedding = dev.local.assistant.speech.SpeakerVerifier.embedding(context, samples)
+                try {
+                    dev.local.assistant.speech.SpeakerVerifier.enroll(context, listOf(embedding, embedding, embedding))
+                    check(dev.local.assistant.speech.SpeakerVerifier.verify(context, samples)) { "Speaker verification rejected its enrollment sample" }
+                } finally { dev.local.assistant.speech.SpeakerVerifier.remove(context) }
+                result.putString("stream", "PASS: synthetic 16 kHz speech decoded and CAMPPlus speaker verification executed on device: $decoded\n")
                 finish(Activity.RESULT_OK, result)
                 return
             }
@@ -96,6 +124,18 @@ class SmokeInstrumentation : Instrumentation() {
                 controller.execute("Shoune confirm call")
                 check(captured?.action == Intent.ACTION_CALL && captured?.dataString == "tel:1234567890")
                 check(!controller.awaitingConfirmation)
+                captured = null
+                controller.execute("hello shoune play daft punk on spotify")
+                check(captured?.dataString?.startsWith("spotify:search:") == true)
+                captured = null
+                controller.execute("shoune play kotlin tutorial on youtube")
+                check(captured?.dataString?.startsWith("https://www.youtube.com/results") == true)
+                captured = null
+                controller.execute("shoune open instagram profile openai")
+                check(captured?.dataString == "https://www.instagram.com/openai/")
+                captured = null
+                controller.execute("shoune open whatsapp chat with nine one nine eight seven six five four three two one zero")
+                check(captured?.dataString == "https://wa.me/919876543210")
                 controller.close()
             }
             val lockedController = dev.local.assistant.commands.CommandController(context,
@@ -110,10 +150,15 @@ class SmokeInstrumentation : Instrumentation() {
             }
             check(context.applicationInfo.loadLabel(context.packageManager).toString() == "Shoune")
             check(WakePhrase.command("hey shoune volume up") == "volume up")
+            check(WakePhrase.command("hello there shoune volume up") == "volume up")
+            check(WakePhrase.command("good morning sean") == "")
             check(WakePhrase.command("hey shawn") == "")
             check(WakePhrase.command("sean go home") == "go home")
             check(WakePhrase.command("hey local volume up") == null)
             check(WakePhrase.command("shownothing") == null)
+            check(dev.local.assistant.speech.AssistantPreferences.setCommander(context, "Pratham"))
+            check(dev.local.assistant.speech.AssistantPreferences.commander(context) == "Pratham")
+            check(!dev.local.assistant.speech.AssistantPreferences.setCommander(context, "<script>"))
             check(context.assets.open("speech-model/am/final.mdl").use { it.read() } >= 0) { "Missing bundled speech model" }
             val info = context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
             check(info.requestedPermissions.orEmpty().none { it == "android.permission.INTERNET" }) { "Unexpected internet permission" }
@@ -197,13 +242,7 @@ class SmokeInstrumentation : Instrumentation() {
                 check(labels.contains("Shoune permissions") && labels.contains("Accessibility controls") && labels.contains("Background battery access"))
                 permissions.finish()
             }
-            listeningPrefs.edit().putBoolean("background", true).commit()
-            val auto = startActivitySync(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            val autoDeadline = SystemClock.elapsedRealtime() + 30000
-            while (!WakeListeningService.running && SystemClock.elapsedRealtime() < autoDeadline) SystemClock.sleep(200)
-            check(WakeListeningService.running) { "Default listening did not start automatically" }
-            runOnMainSync { auto.finish() }
-            result.putString("stream", "PASS: default-on auto start, persistent explicit stop, secure screen, strict call confirmation, voice-only UI, model loading, time, timer validation, flashlight, call cancellation, app lookup, foreground notification and stop. Acoustic recognition requires real-device testing.\n")
+            result.putString("stream", "PASS: persistent explicit stop, secure screen, strict call confirmation, voice-only UI, model loading, time, timer validation, flashlight, call cancellation, app lookup, foreground notification and stop. Default startup and lock survival are verified as device-level checks.\n")
             finish(Activity.RESULT_OK, result)
         } catch (error: Throwable) {
             result.putString("stream", "FAIL: " + error.stackTraceToString())

@@ -15,6 +15,7 @@ import android.net.Uri
 import android.provider.AlarmClock
 import java.text.DateFormat
 import java.util.Date
+import java.net.URLEncoder
 
 
 /** Shared command policy for foreground and background speech; all calls require confirmation. */
@@ -40,7 +41,7 @@ class CommandController(
         try {
             // While locked, permit only torch, time and stopping. Never speak private model answers.
             if (!isUnlocked() &&
-                text !in setOf("flashlight on", "flashlight off", "time", "what time is it", "stop", "stop listening")) {
+                text !in setOf("flashlight on", "flashlight off", "time", "what time is it", "stop", "stop listening", "media play", "media pause", "media next", "media previous")) {
                 clearPending(); reply("Unlock your phone to use this command."); return
             }
             pendingCall?.let { number ->
@@ -71,6 +72,39 @@ class CommandController(
                 text == "how many notifications" || text == "notification count" -> {
                     val access = ShouneNotificationService.current
                     reply(if (access == null) "Enable notification access in Permissions" else "You have ${access.count()} notifications")
+                }
+                text.startsWith("media ") -> {
+                    val access = ShouneNotificationService.current
+                    reply(if (access?.media(text.removePrefix("media ")) == true) "Done" else "Start media once and enable notification access first")
+                }
+                text.matches(Regex("play .+ on (spotify|youtube)")) -> {
+                    val appName = text.substringAfterLast(" on ")
+                    val query = text.removePrefix("play ").substringBeforeLast(" on ").trim()
+                    val encoded = URLEncoder.encode(query, "UTF-8")
+                    val uri = if (appName == "spotify") Uri.parse("spotify:search:$encoded")
+                        else Uri.parse("https://www.youtube.com/results?search_query=$encoded")
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    reply("Opening $query on $appName")
+                }
+                text.startsWith("open instagram profile ") -> {
+                    val handle = text.removePrefix("open instagram profile ").trim().removePrefix("@").filter { it.isLetterOrDigit() || it == '_' || it == '.' }
+                    require(handle.isNotBlank()) { "Say an Instagram profile name" }
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/$handle/")))
+                    reply("Opening Instagram profile $handle")
+                }
+                text.startsWith("open whatsapp chat with ") -> {
+                    val number = SpokenNumbers.phone(text.removePrefix("open whatsapp chat with "))
+                    require(number.matches(Regex("\\+?[0-9]{7,15}"))) { "Say a WhatsApp phone number one digit at a time" }
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/${number.removePrefix("+")}")))
+                    reply("Opening the WhatsApp chat. Shoune will not send without a separate confirmed action.")
+                }
+                text.startsWith("tap ") -> {
+                    val access = PhoneAccessibilityService.current
+                    reply(if (access?.clickText(text.removePrefix("tap ")) == true) "Done" else "I need one exact visible label to tap")
+                }
+                text.startsWith("type ") -> {
+                    val access = PhoneAccessibilityService.current
+                    reply(if (access?.typeIntoFocused(text.removePrefix("type ")) == true) "Text entered. Say tap followed by the exact button label when ready." else "Select a non-password text field first")
                 }
                 text == "stop listening" || text == "stop" -> { stop(); reply("Paused.") }
                 text.startsWith("open ") -> {

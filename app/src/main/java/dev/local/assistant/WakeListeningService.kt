@@ -1,5 +1,7 @@
 package dev.local.assistant
 import dev.local.assistant.speech.WakePhrase
+import dev.local.assistant.speech.OfflineSpeechLoop
+import dev.local.assistant.speech.SpeakerVerifier
 
 import android.app.*
 import android.content.Intent
@@ -9,7 +11,6 @@ import org.json.JSONObject
 import org.vosk.Model
 import org.vosk.Recognizer
 import org.vosk.android.RecognitionListener
-import org.vosk.android.SpeechService
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -18,7 +19,7 @@ class WakeListeningService : Service(), RecognitionListener {
     private val worker = Executors.newSingleThreadExecutor()
     private var model: Model? = null
     private var recognizer: Recognizer? = null
-    private var speech: SpeechService? = null
+    private var speech: OfflineSpeechLoop? = null
     private var tts: TextToSpeech? = null
     private var offlineVoice = false
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
@@ -27,7 +28,7 @@ class WakeListeningService : Service(), RecognitionListener {
     private var micRetries = 0
     @Volatile private var closed = false
     private var lastCommandAt = 0L
-    private var awakeUntil = 0L
+    @Volatile private var awakeUntil = 0L
     private var wakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -44,8 +45,8 @@ class WakeListeningService : Service(), RecognitionListener {
             android.os.Handler(mainLooper).post {
                 if (!closed && result == TextToSpeech.SUCCESS) {
                     val engine = tts
-                    val voice = engine?.voices?.firstOrNull { it.locale.language == "en" && !it.isNetworkConnectionRequired }
-                    offlineVoice = voice != null && engine?.setVoice(voice) == TextToSpeech.SUCCESS
+                    val voice = engine?.let { dev.local.assistant.speech.AssistantPreferences.applyVoice(this, it) }
+                    offlineVoice = voice != null
                 }
             }
         }
@@ -72,14 +73,26 @@ class WakeListeningService : Service(), RecognitionListener {
                         model = loaded
                         try {
                             recognizer = Recognizer(loaded, 16000f)
-                            speech = SpeechService(recognizer, 16000f)
-                            check(speech?.startListening(this) == true)
+                            check(startSpeechLoop())
                             update("Listening for Shoune")
                         } catch (error: Exception) { update("Microphone unavailable. Stop and try again."); stopSelf() }
                     }
                 }
             } catch (error: Exception) { stopSelf() }
         }
+    }
+
+    private fun startSpeechLoop(): Boolean {
+        val current = recognizer ?: return false
+        speech?.shutdown()
+        val loop = OfflineSpeechLoop(this, current, { json, audio ->
+            val text = runCatching { JSONObject(json).optString("text") }.getOrDefault("")
+            val candidate = text.isNotBlank() && (WakePhrase.command(text) != null || android.os.SystemClock.elapsedRealtime() <= awakeUntil)
+            if (candidate && (!SpeakerVerifier.enrolled(this) || SpeakerVerifier.verify(this, audio)))
+                main.post { handle(json) }
+        }, { failure -> main.post { onError(failure) } })
+        speech = loop
+        return loop.start()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -90,7 +103,7 @@ class WakeListeningService : Service(), RecognitionListener {
         }
         if (intent?.action == LISTEN_NOW) {
             awakeUntil = android.os.SystemClock.elapsedRealtime() + 12000
-            respond("I’m listening")
+            respond("Yes ${dev.local.assistant.speech.AssistantPreferences.commander(this)}")
         }
         return START_STICKY
     }
@@ -140,7 +153,7 @@ class WakeListeningService : Service(), RecognitionListener {
         if (wakeCommand == null && now > awakeUntil) return
         if (wakeCommand == "") {
             awakeUntil = now + 12000
-            respond("I'm listening")
+            respond("Yes ${dev.local.assistant.speech.AssistantPreferences.commander(this)}")
             return
         }
         if (now - lastCommandAt < 500) return
@@ -178,7 +191,7 @@ class WakeListeningService : Service(), RecognitionListener {
         update("Microphone interrupted. Retrying…")
         main.postDelayed({
             if (!closed) {
-                if (++micRetries <= 3 && runCatching { speech?.startListening(this) == true }.getOrDefault(false))
+                if (++micRetries <= 3 && runCatching { startSpeechLoop() }.getOrDefault(false))
                     update("Listening for Shoune")
                 else stopSelf()
             }

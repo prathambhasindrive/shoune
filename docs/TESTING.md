@@ -7,6 +7,9 @@
 - Device smoke suite passes: bundled Vosk loading, voice-only UI, no INTERNET permission, wake aliases/phrase normalization, time, invalid timers, invalid contact/absent app feedback, installed Settings app launch, flashlight on/off, call confirmation/cancellation, hands-free preference, ongoing service notification and explicit stop.
 - Confirmation launch is captured by a test callback, verifying ACTION_CALL and the intended number without placing a real call. No external call was placed by automated testing.
 - A synthetic English 16 kHz PCM clip spoken as “Shawn. Turn on the flashlight.” decodes through the phone's actual Vosk engine as “sean turn on the flashlight”. Wake normalization and the command router accept it. This is file-input acoustic testing, not a microphone recording of the user's voice.
+- The bundled 3D-Speaker CAMPPlus model produced an embedding on the phone; an enrolled copy of that embedding was accepted by the same on-device verification path. This validates native integration, not resistance to recordings or impersonation.
+- The production microphone foreground service remained alive and foreground after 30 seconds with the physical display off (`mAwake=false`). This is a lifecycle smoke check, not an overnight endurance guarantee.
+- Spotify, YouTube, Instagram-profile and WhatsApp-number intents are verified at the command boundary; no messages, posts or external media actions are sent by the automated suite.
 - Qwen 2.5 0.5B Q4_K_M loads through the packaged native engine and generates “Hello! How can I assist you today?” on the Realme. The test restores the previous selected-model preference afterward. Test model SHA256: `74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db`, matching the official publisher file.
 
 ## Running checks
@@ -17,7 +20,7 @@ Build `assembleDebug assembleDebugAndroidTest`, install both APKs, and use the d
 adb -s SERIAL shell am instrument -w dev.local.assistant.test/dev.local.assistant.SmokeInstrumentation
 ```
 
-The device suite expects microphone, camera and CALL_PHONE grants. It toggles hands-free off at the end and briefly opens Android Settings. Read the PASS/FAIL stream; adb's process exit code alone does not establish test success.
+The device suite expects microphone, camera and CALL_PHONE grants. It toggles hands-free off at the end and briefly opens Android Settings. Read the PASS/FAIL stream; adb's process exit code alone does not establish test success. The `-e lock true` setup mode starts the production foreground service for a separate physical screen-off check.
 
 Optional native generation test: place a compatible GGUF at app-private `files/language-models/test__qwen.gguf`, then run the same runner with `-e model true`. Optional audio decoder test: place raw mono 16-bit 16 kHz PCM at app-private `files/test-speech.pcm`, then run with `-e audio true`. These are instrumentation-only paths; production UI has no command-injection endpoint. Do not include personal recordings or model weights in source control.
 
@@ -36,6 +39,10 @@ Optional native generation test: place a compatible GGUF at app-private `files/l
 - Android microphone foreground services: https://developer.android.com/develop/background-work/services/fgs/service-types
 - Vosk Android: https://alphacephei.com/vosk/android
 - Llamatik: https://github.com/ferranpons/Llamatik
+- sherpa-onnx speaker identification: https://github.com/k2-fsa/sherpa-onnx
+- 3D-Speaker: https://github.com/modelscope/3D-Speaker
+- OpenDroid reference: https://github.com/yashab-cyber/opendroid
+- DroidClaw reference: https://github.com/levilyf/droidclaw
 - Official tested model: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf
 
-OpenDroid/DroidClaw code was not needed for this V1 repair and was not copied.
+OpenDroid and DroidClaw were reviewed as architecture references. Shoune reimplements narrowly scoped, exact-match accessibility actions and does not copy their source verbatim.
