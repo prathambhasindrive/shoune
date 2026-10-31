@@ -225,11 +225,11 @@ class SmokeInstrumentation : Instrumentation() {
             check(screenContains("confirm call")) { "Spoken call confirmation absent" }
             command("cancel")
             check(screenContains("Call cancelled")) { "Call cancellation failed" }
-            runOnMainSync { launched.findViewById<android.widget.Switch>(R.id.hands_free).isChecked = true }
+            runOnMainSync { context.getSharedPreferences("shoune",0).edit().putBoolean("background",true).commit(); context.startForegroundService(Intent(context, WakeListeningService::class.java)) }
             SystemClock.sleep(3000)
             check(context.getSharedPreferences("shoune", 0).getBoolean("background", false))
             check(context.getSystemService(NotificationManager::class.java).activeNotifications.any { it.id == 41 }) { "Foreground listening notification absent" }
-            runOnMainSync { launched.findViewById<android.widget.Switch>(R.id.hands_free).isChecked = false }
+            runOnMainSync { context.getSharedPreferences("shoune",0).edit().putBoolean("background",false).commit(); context.stopService(Intent(context, WakeListeningService::class.java)) }
             SystemClock.sleep(1000)
             check(!context.getSharedPreferences("shoune", 0).getBoolean("background", true))
             check(context.getSystemService(NotificationManager::class.java).activeNotifications.none { it.id == 41 }) { "Stop did not remove foreground notification" }
@@ -239,7 +239,7 @@ class SmokeInstrumentation : Instrumentation() {
             waitForIdleSync()
             runOnMainSync {
                 val labels = views(permissions.window.decorView).filterIsInstance<TextView>().joinToString(" ") { it.text }
-                check(labels.contains("Shoune permissions") && labels.contains("Accessibility controls") && labels.contains("Background battery access"))
+                check(labels.contains("Settings") && labels.contains("Accessibility controls") && labels.contains("Background battery access"))
                 permissions.finish()
             }
             result.putString("stream", "PASS: persistent explicit stop, secure screen, strict call confirmation, voice-only UI, model loading, time, timer validation, flashlight, call cancellation, app lookup, foreground notification and stop. Default startup and lock survival are verified as device-level checks.\n")

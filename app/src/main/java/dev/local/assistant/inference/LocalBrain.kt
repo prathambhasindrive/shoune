@@ -21,6 +21,16 @@ object LocalBrain {
     private val cancelled = AtomicBoolean(false)
     @Volatile private var nativeReady = false
     private var loaded: String? = null
+    private val idleRelease = Runnable {
+        work.execute {
+            // The same serial worker owns inference and release, preventing native use-after-free.
+            if (!occupied.get() && nativeReady) {
+                runCatching { LlamaBridge.shutdown() }
+                nativeReady = false
+                loaded = null
+            }
+        }
+    }
     fun directory(context: Context) = File(context.filesDir, "language-models").apply { mkdirs() }
     fun files(context: Context) = directory(context).listFiles()?.filter { it.extension == "gguf" }?.sortedBy { it.name }.orEmpty()
     fun selected(context: Context): File? {
@@ -37,10 +47,11 @@ object LocalBrain {
     private fun job(callback: (Result<String>) -> Unit, action: () -> String) {
         if (!occupied.compareAndSet(false, true)) { callback(Result.failure(IllegalStateException("Shoune is still working. Try again shortly."))); return }
         cancelled.set(false)
+        main.removeCallbacks(idleRelease)
         work.execute {
             val result = runCatching { action() }
             occupied.set(false)
-            main.post { callback(result) }
+            main.post { callback(result); main.postDelayed(idleRelease, 120_000) }
         }
     }
     fun importModel(context: Context, uri: Uri, progress: (Long) -> Unit, callback: (Result<String>) -> Unit) {

@@ -62,6 +62,17 @@ class CommandController(
             }
             awaitingConfirmation = false
             when {
+                text.matches(Regex("open youtube in (brave|chrome) and play .+")) -> {
+                    val browser = if (text.contains(" in brave ")) "com.brave.browser" else "com.android.chrome"
+                    val query = text.substringAfter(" and play ")
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=" + URLEncoder.encode(query,"UTF-8"))).setPackage(browser))
+                    reply("Opening YouTube results in ${if (browser.contains("brave")) "Brave" else "Chrome"}. Select a result to play.")
+                }
+                text.matches(Regex("open chatgpt in (chrome|brave)( and .+)?")) -> {
+                    val browser = if (text.contains("in brave")) "com.brave.browser" else "com.android.chrome"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/")).setPackage(browser))
+                    reply("Opening ChatGPT. Once it loads, focus the prompt field and say type followed by your question.")
+                }
                 text == "command history" || text == "open history" -> startActivity(Intent(this, HistoryActivity::class.java))
                 text.startsWith("search for ") || text.startsWith("search browser for ") -> {
                     val query = text.substringAfter("for ").trim()

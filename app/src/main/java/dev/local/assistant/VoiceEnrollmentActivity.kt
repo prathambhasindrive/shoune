@@ -34,6 +34,7 @@ class VoiceEnrollmentActivity : Activity() {
         } })
         root.addView(Button(this).apply { text="Back"; isAllCaps=false; setOnClickListener { finish() } })
         setContentView(ScrollView(this).apply { addView(root) })
+        ScreenStyle.apply(this)
     }
 
     private fun capture() {

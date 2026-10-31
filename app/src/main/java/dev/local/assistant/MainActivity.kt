@@ -48,37 +48,10 @@ class MainActivity : Activity(), RecognitionListener {
         transcript = findViewById(R.id.transcript)
         listeningState = findViewById(R.id.listening_state)
         load = findViewById(R.id.settings)
-        findViewById<Button>(R.id.local_models).setOnClickListener { startActivity(Intent(this, ModelsActivity::class.java)) }
+        findViewById<Button>(R.id.history).setOnClickListener { startActivity(Intent(this, HistoryActivity::class.java)) }
         findViewById<Button>(R.id.microphone).setOnClickListener {
             if (acceptingSpeech) { stopListening(); show("Paused. Tap when you're ready.") }
             else startListening()
-        }
-        findViewById<Switch>(R.id.hands_free).setOnCheckedChangeListener { toggle, enabled ->
-            if (syncingSwitch) return@setOnCheckedChangeListener
-            if (enabled) {
-                if (model == null || busy) { toggle.isChecked = false; reply("I'm still getting ready.") }
-                else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    syncingSwitch = true; toggle.isChecked = false; syncingSwitch = false
-                    getSharedPreferences("shoune", MODE_PRIVATE).edit().putBoolean("audioPermissionAsked", true).apply()
-                    requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
-                } else {
-                    stopListening()
-                    try {
-                        startForegroundService(Intent(this, WakeListeningService::class.java))
-                        getSharedPreferences("shoune", MODE_PRIVATE).edit().putBoolean("background", true).apply()
-                    } catch (error: Exception) {
-                        toggle.isChecked = false
-                        reply("Android could not start listening. Check Permissions.")
-                        return@setOnCheckedChangeListener
-                    }
-                    show("Say Shoune, then tell me what you need.")
-                    listeningState.text = "Hands-free is on"
-                }
-            } else {
-                getSharedPreferences("shoune", MODE_PRIVATE).edit().putBoolean("background", false).apply()
-                stopService(Intent(this, WakeListeningService::class.java))
-                listeningState.text = "Tap to speak"
-            }
         }
         load.setOnClickListener { startActivity(Intent(this, PermissionsActivity::class.java)) }
         load.setOnLongClickListener {
@@ -115,6 +88,26 @@ class MainActivity : Activity(), RecognitionListener {
         })
         if (File(modelDir, "am/final.mdl").exists()) initializeModel()
         else installBundledModel()
+    }
+
+    private val animationHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private fun animateTranscript(value: String) {
+        animationHandler.removeCallbacksAndMessages(null)
+        val bot = findViewById<Button>(R.id.microphone)
+        bot.animate().scaleX(1.12f).scaleY(1.12f).setDuration(180).withEndAction {
+            bot.animate().scaleX(1f).scaleY(1f).setDuration(260).start()
+        }.start()
+        val text = value.take(500)
+        var position = 0
+        val tick = object : Runnable {
+            override fun run() {
+                if (!visible || destroyed) return
+                position = minOf(position + 3, text.length)
+                transcript.text = text.take(position)
+                if (position < text.length) animationHandler.postDelayed(this, 16)
+            }
+        }
+        animationHandler.post(tick)
     }
 
     private fun show(message: String) = runOnUiThread {
@@ -321,14 +314,11 @@ class MainActivity : Activity(), RecognitionListener {
         if (android.animation.ValueAnimator.areAnimatorsEnabled())
             (findViewById<Button>(R.id.microphone).background as? android.graphics.drawable.Animatable)?.start()
         dev.local.assistant.speech.VoiceSessionState.observer = { heard, message ->
-            if (heard.isNotBlank()) transcript.text = heard
+            if (heard.isNotBlank() && transcript.text.toString() != heard) animateTranscript(heard)
             show(message)
             listeningState.text = if (WakeListeningService.running) "Listening for Shoune" else "Tap to speak"
         }
         if (::status.isInitialized) {
-            syncingSwitch = true
-            findViewById<Switch>(R.id.hands_free).isChecked = WakeListeningService.running
-            syncingSwitch = false
             listeningState.text = if (WakeListeningService.running) "Listening for Shoune" else "Tap to speak"
             resumeDefaultListening()
         }
@@ -338,7 +328,7 @@ class MainActivity : Activity(), RecognitionListener {
         if (!visible || destroyed || model == null || busy || WakeListeningService.running ||
             !dev.local.assistant.speech.ListeningPreferences.enabled(this)) return
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            findViewById<Switch>(R.id.hands_free).isChecked = true
+            startForegroundService(Intent(this, WakeListeningService::class.java))
         } else {
             val prefs = getSharedPreferences("shoune", MODE_PRIVATE)
             if (!prefs.getBoolean("audioPermissionAsked", false)) {
@@ -352,6 +342,7 @@ class MainActivity : Activity(), RecognitionListener {
         if (requestCode == 1 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) resumeDefaultListening()
     }
     override fun onDestroy() {
+        animationHandler.removeCallbacksAndMessages(null)
         destroyed = true
         commands.close()
         stopListening()

@@ -22,13 +22,16 @@ class HistoryActivity : Activity() {
     private fun render() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32,48,32,32) }
         root.addView(TextView(this).apply { text = "Command history"; textSize = 26f })
+        root.addView(TextView(this).apply { text = "Your latest 100 requests • Stored on this device"; textSize = 13f; setPadding(0,12,0,24) })
         root.addView(Button(this).apply { text = "Clear history"; setOnClickListener { getSharedPreferences("history",0).edit().clear().apply(); render() } })
         val items = runCatching { JSONArray(getSharedPreferences("history",0).getString("items","[]")) }.getOrDefault(JSONArray())
+        if (items.length() == 0) root.addView(TextView(this).apply { text = "A fresh conversation\nYour requests will appear here when you speak to Shoune."; textSize = 18f; setPadding(16,48,16,48) })
         for (i in 0 until items.length()) {
             val item = items.getJSONObject(i)
             root.addView(TextView(this).apply { text = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(item.getLong("time"))) + "\n" + item.getString("command"); textSize = 17f; setPadding(0,16,0,16) })
         }
         root.addView(Button(this).apply { text = "Back"; setOnClickListener { finish() } })
         setContentView(ScrollView(this).apply { addView(root) })
+        ScreenStyle.apply(this)
     }
 }

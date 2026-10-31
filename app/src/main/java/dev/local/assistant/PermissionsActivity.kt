@@ -26,7 +26,19 @@ class PermissionsActivity : Activity() {
             label(detail, 13f)
             root.addView(Button(this).apply { text = if (enabled) "Manage" else "Enable"; isAllCaps = false; setOnClickListener { action() } })
         }
-        label("Shoune permissions", 28f)
+        label("Settings", 28f)
+        root.addView(Button(this).apply { text = "Local models"; setOnClickListener { open(Intent(this@PermissionsActivity, ModelsActivity::class.java)) } })
+        root.addView(Switch(this).apply {
+            text = "Always listen for Shoune"
+            isChecked = dev.local.assistant.speech.ListeningPreferences.enabled(this@PermissionsActivity)
+            setOnCheckedChangeListener { _, enabled ->
+                getSharedPreferences("shoune", 0).edit().putBoolean("background", enabled).apply()
+                if (!enabled) stopService(Intent(this@PermissionsActivity, WakeListeningService::class.java))
+                else if (allowed(Manifest.permission.RECORD_AUDIO)) {
+                    open(Intent(this@PermissionsActivity, MainActivity::class.java))
+                } else requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 20)
+            }
+        })
         root.addView(Button(this).apply { text = "Command history"; setOnClickListener { open(Intent(this@PermissionsActivity, HistoryActivity::class.java)) } })
         label("You choose each permission. Android will ask you to approve access in its own screens.", 14f)
         root.addView(Button(this).apply { text = "Voice & commander name"; isAllCaps = false; setOnClickListener { open(Intent(this@PermissionsActivity, PersonalizationActivity::class.java)) } })
@@ -62,6 +74,7 @@ class PermissionsActivity : Activity() {
         root.addView(Button(this).apply { text = "Open app battery settings"; setOnClickListener { open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } })
         root.addView(Button(this).apply { text = "Back to Shoune"; setOnClickListener { finish() } })
         setContentView(ScrollView(this).apply { addView(root) })
+        ScreenStyle.apply(this)
     }
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) { super.onRequestPermissionsResult(code,permissions,results); render() }
 }

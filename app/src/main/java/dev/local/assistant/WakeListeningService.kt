@@ -90,7 +90,17 @@ class WakeListeningService : Service(), RecognitionListener {
             val candidate = text.isNotBlank() && (WakePhrase.command(text) != null || android.os.SystemClock.elapsedRealtime() <= awakeUntil)
             if (candidate && (!SpeakerVerifier.enrolled(this) || SpeakerVerifier.verify(this, audio)))
                 main.post { handle(json) }
-        }, { failure -> main.post { onError(failure) } })
+        }, { failure -> main.post { onError(failure) } }, { json ->
+            val heard = runCatching { JSONObject(json).optString("partial") }.getOrDefault("")
+            if (heard.isNotBlank() && !SpeakerVerifier.enrolled(this) &&
+                (WakePhrase.command(heard) != null || android.os.SystemClock.elapsedRealtime() < awakeUntil)) {
+                main.post {
+                    if (!closed && !speaking && dev.local.assistant.security.DeviceSecurity.unlocked(this) &&
+                        dev.local.assistant.speech.VoiceSessionState.heard != heard)
+                        dev.local.assistant.speech.VoiceSessionState.publish("Listening…", heard)
+                }
+            }
+        })
         speech = loop
         return loop.start()
     }
@@ -153,6 +163,8 @@ class WakeListeningService : Service(), RecognitionListener {
         if (wakeCommand == null && now > awakeUntil) return
         if (wakeCommand == "") {
             awakeUntil = now + 12000
+            if (dev.local.assistant.security.DeviceSecurity.unlocked(this))
+                dev.local.assistant.speech.VoiceSessionState.publish("Listening…", text)
             respond(greeting())
             return
         }

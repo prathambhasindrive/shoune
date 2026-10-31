@@ -92,6 +92,7 @@ class ModelsActivity : Activity() {
         label(body, "Downloads use your browser and need internet. Shoune itself has no internet permission. Import a single GGUF instruct model up to 2 GB; split models and vision projectors are not supported. Some GGUF architectures may be incompatible. AI answers can be wrong.")
         button(body, "Back to Shoune") { finish() }
         setContentView(ScrollView(this).apply { addView(body) })
+        ScreenStyle.apply(this)
     }
     @Deprecated("Platform document picker")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

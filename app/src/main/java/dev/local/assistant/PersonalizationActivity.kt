@@ -50,6 +50,7 @@ class PersonalizationActivity : Activity() {
         label("These voices are installed by Android. Network voices are excluded. Use Preview before choosing.")
         status = label("Loading installed voices…")
         setContentView(ScrollView(this).apply { addView(root) })
+        ScreenStyle.apply(this)
     }
 
     private fun renderVoices() {

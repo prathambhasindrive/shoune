@@ -14,7 +14,8 @@ class OfflineSpeechLoop(
     private val context: Context,
     private val recognizer: Recognizer,
     private val result: (String, FloatArray) -> Unit,
-    private val error: (Exception) -> Unit
+    private val error: (Exception) -> Unit,
+    private val partial: (String) -> Unit = {}
 ) {
     private val active = AtomicBoolean(false)
     @Volatile private var paused = false
@@ -38,19 +39,20 @@ class OfflineSpeechLoop(
 
     private fun loop() {
         val buffer = ShortArray(2048)
-        val utterance = ArrayList<Float>(16_000 * 5)
+        val utterance = FloatArray(16_000 * 15)
+        var used = 0
         try {
             while (active.get()) {
                 val count = recorder?.read(buffer, 0, buffer.size) ?: break
                 if (count <= 0 || paused) continue
                 for (index in 0 until count) {
-                    if (utterance.size < 16_000 * 15) utterance.add(buffer[index] / 32768f)
+                    if (used < utterance.size) utterance[used++] = buffer[index] / 32768f
                 }
                 if (recognizer.acceptWaveForm(buffer, count)) {
-                    val audio = FloatArray(utterance.size) { utterance[it] }
-                    utterance.clear()
+                    val audio = utterance.copyOf(used)
+                    used = 0
                     result(recognizer.result, audio)
-                }
+                } else partial(recognizer.partialResult)
             }
         } catch (failure: Exception) { if (active.get()) error(failure) }
     }
