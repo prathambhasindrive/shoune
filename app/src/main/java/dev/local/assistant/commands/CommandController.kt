@@ -61,7 +61,10 @@ class CommandController(
                 }
             }
             awaitingConfirmation = false
+            DeviceControls.execute(this, text, launch)?.let { reply(it); return }
             when {
+                text in listOf("features", "what can you do", "tell me your features", "help") -> reply(Features.spoken)
+                text == "open features" -> startActivity(Intent(this, FeaturesActivity::class.java))
                 text.matches(Regex("open youtube in (brave|chrome) and play .+")) -> {
                     val browser = if (text.contains(" in brave ")) "com.brave.browser" else "com.android.chrome"
                     val query = text.substringAfter(" and play ")

@@ -27,6 +27,10 @@ class PermissionsActivity : Activity() {
             root.addView(Button(this).apply { text = if (enabled) "Manage" else "Enable"; isAllCaps = false; setOnClickListener { action() } })
         }
         label("Settings", 28f)
+        root.addView(Button(this).apply { text = "Features & commands"; setOnClickListener { open(Intent(this@PermissionsActivity, FeaturesActivity::class.java)) } })
+        row("Modify system settings", "Allow voice brightness controls.", Settings.System.canWrite(this)) {
+            open(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+        }
         root.addView(Button(this).apply { text = "Local models"; setOnClickListener { open(Intent(this@PermissionsActivity, ModelsActivity::class.java)) } })
         root.addView(Switch(this).apply {
             text = "Always listen for Shoune"

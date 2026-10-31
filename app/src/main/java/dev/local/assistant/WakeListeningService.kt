@@ -60,7 +60,7 @@ class WakeListeningService : Service(), RecognitionListener {
                         speech?.reset()
                         speaking = false
                         speech?.setPause(false)
-                        if (awakeUntil != 0L) awakeUntil = android.os.SystemClock.elapsedRealtime() + 12000
+                        // Conversation remains active until explicitly ended.
                     }
                 }, 250)
             }
@@ -112,7 +112,7 @@ class WakeListeningService : Service(), RecognitionListener {
             return START_NOT_STICKY
         }
         if (intent?.action == LISTEN_NOW) {
-            awakeUntil = android.os.SystemClock.elapsedRealtime() + 12000
+            awakeUntil = Long.MAX_VALUE
             respond(greeting())
         }
         return START_STICKY
@@ -162,7 +162,7 @@ class WakeListeningService : Service(), RecognitionListener {
         val wakeCommand = WakePhrase.command(text)
         if (wakeCommand == null && now > awakeUntil) return
         if (wakeCommand == "") {
-            awakeUntil = now + 12000
+            awakeUntil = Long.MAX_VALUE
             if (dev.local.assistant.security.DeviceSecurity.unlocked(this))
                 dev.local.assistant.speech.VoiceSessionState.publish("Listening…", text)
             respond(greeting())
@@ -171,10 +171,16 @@ class WakeListeningService : Service(), RecognitionListener {
         if (now - lastCommandAt < 500) return
         lastCommandAt = now
         val command = wakeCommand ?: text.trim()
-        awakeUntil = 0
+        awakeUntil = Long.MAX_VALUE
+        if (command in listOf("stop conversation", "end conversation", "goodbye")) {
+            awakeUntil = 0
+            commands.clearPending()
+            respond("Conversation ended. Say Hey Shoune when you need me.")
+            return
+        }
         dev.local.assistant.speech.VoiceSessionState.publish("Heard you", if (dev.local.assistant.security.DeviceSecurity.unlocked(this)) text else "")
         commands.execute(command)
-        if (commands.awaitingConfirmation) awakeUntil = now + 30000
+        // Call confirmation retains its independent deadline.
     }
 
     private val commands by lazy {

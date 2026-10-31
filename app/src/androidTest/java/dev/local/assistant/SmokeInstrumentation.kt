@@ -150,6 +150,15 @@ class SmokeInstrumentation : Instrumentation() {
                 controller.execute("shoune open whatsapp chat with nine one nine eight seven six five four three two one zero")
                 check(captured?.dataString == "https://wa.me/919876543210")
                 controller.close()
+                val panels = mapOf("wifi on" to android.provider.Settings.ACTION_WIFI_SETTINGS,
+                    "bluetooth off" to android.provider.Settings.ACTION_BLUETOOTH_SETTINGS,
+                    "airplane mode" to android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS,
+                    "battery saver" to android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS)
+                for ((command, action) in panels) {
+                    captured = null
+                    val message = dev.local.assistant.commands.DeviceControls.execute(context, command) { captured = it }
+                    check(captured?.action == action && message?.contains("system controls") == true)
+                }
             }
             val lockedController = dev.local.assistant.commands.CommandController(context,
                 reply = { feedback = it }, launch = { error("Locked command launched an activity") },

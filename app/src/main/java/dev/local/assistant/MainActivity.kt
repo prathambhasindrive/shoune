@@ -48,7 +48,6 @@ class MainActivity : Activity(), RecognitionListener {
         transcript = findViewById(R.id.transcript)
         listeningState = findViewById(R.id.listening_state)
         load = findViewById(R.id.settings)
-        findViewById<Button>(R.id.history).setOnClickListener { startActivity(Intent(this, HistoryActivity::class.java)) }
         findViewById<Button>(R.id.microphone).setOnClickListener {
             if (acceptingSpeech) { stopListening(); show("Paused. Tap when you're ready.") }
             else startListening()
