@@ -31,6 +31,18 @@ class PersonalizationActivity : Activity() {
     private fun renderShell() {
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(32, 48, 32, 32); setBackgroundColor(Color.rgb(16, 27, 23)) }
         label("Voice & identity", 28f)
+        label("Wake animation", 18f)
+        val animationPrefs = getSharedPreferences("appearance", 0)
+        val animationChoices = RadioGroup(this)
+        listOf("Pulse", "Sway", "None").forEach { choice ->
+            animationChoices.addView(RadioButton(this).apply {
+                id = android.view.View.generateViewId()
+                text = choice
+                isChecked = animationPrefs.getString("wakeAnimation", "Pulse") == choice
+                setOnClickListener { animationPrefs.edit().putString("wakeAnimation", choice).apply() }
+            })
+        }
+        root.addView(animationChoices)
         label("What should Shoune call you?", 18f)
         val name = EditText(this).apply {
             setText(AssistantPreferences.commander(this@PersonalizationActivity)); hint = "Commander name"

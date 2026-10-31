@@ -19,6 +19,16 @@ class SmokeInstrumentation : Instrumentation() {
     private var testAudio = false
     private var testModel = false
     private var prepareLockTest = false
+    private var savedListening: Map<String, Boolean?>? = null
+    override fun finish(resultCode: Int, results: Bundle?) {
+        // Restore before Instrumentation.finish can terminate the application process.
+        savedListening?.let { saved ->
+            val edit = targetContext.getSharedPreferences("shoune", 0).edit()
+            saved.forEach { (key, value) -> if (value == null) edit.remove(key) else edit.putBoolean(key, value) }
+            edit.commit()
+        }
+        super.finish(resultCode, results)
+    }
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
         testAudio = arguments?.getString("audio") == "true"
@@ -43,6 +53,9 @@ class SmokeInstrumentation : Instrumentation() {
                 return
             }
             val listeningPrefs = context.getSharedPreferences("shoune", 0)
+            savedListening = listOf("background", "defaultListeningV2").associateWith {
+                if (listeningPrefs.contains(it)) listeningPrefs.getBoolean(it, false) else null
+            }
             listeningPrefs.edit().remove("defaultListeningV2").putBoolean("background", false).commit()
             dev.local.assistant.speech.ListeningPreferences.initialize(context)
             check(dev.local.assistant.speech.ListeningPreferences.enabled(context)) { "New default should be on" }
@@ -125,7 +138,7 @@ class SmokeInstrumentation : Instrumentation() {
                 check(captured?.action == Intent.ACTION_CALL && captured?.dataString == "tel:1234567890")
                 check(!controller.awaitingConfirmation)
                 captured = null
-                controller.execute("hello shoune play daft punk on spotify")
+                controller.execute("hey shoune play daft punk on spotify")
                 check(captured?.dataString?.startsWith("spotify:search:") == true)
                 captured = null
                 controller.execute("shoune play kotlin tutorial on youtube")
@@ -150,10 +163,11 @@ class SmokeInstrumentation : Instrumentation() {
             }
             check(context.applicationInfo.loadLabel(context.packageManager).toString() == "Shoune")
             check(WakePhrase.command("hey shoune volume up") == "volume up")
-            check(WakePhrase.command("hello there shoune volume up") == "volume up")
-            check(WakePhrase.command("good morning sean") == "")
+            check(WakePhrase.command("okay shoune volume up") == "volume up")
+            check(WakePhrase.command("ok sean") == "")
             check(WakePhrase.command("hey shawn") == "")
-            check(WakePhrase.command("sean go home") == "go home")
+            check(WakePhrase.command("hey sean go home") == "go home")
+            check(WakePhrase.command("shoune") == null)
             check(WakePhrase.command("hey local volume up") == null)
             check(WakePhrase.command("shownothing") == null)
             check(dev.local.assistant.speech.AssistantPreferences.setCommander(context, "Pratham"))

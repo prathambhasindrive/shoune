@@ -94,9 +94,16 @@ class MainActivity : Activity(), RecognitionListener {
     private fun animateTranscript(value: String) {
         animationHandler.removeCallbacksAndMessages(null)
         val bot = findViewById<Button>(R.id.microphone)
-        bot.animate().scaleX(1.12f).scaleY(1.12f).setDuration(180).withEndAction {
-            bot.animate().scaleX(1f).scaleY(1f).setDuration(260).start()
-        }.start()
+        val choice = getSharedPreferences("appearance",0).getString("wakeAnimation", "Pulse")
+        if (android.animation.ValueAnimator.areAnimatorsEnabled() && choice != "None") {
+            bot.animate().cancel()
+            if (choice == "Sway") bot.animate().rotation(12f).setDuration(200).withEndAction {
+                bot.animate().rotation(0f).setDuration(350).start()
+            }.start()
+            else bot.animate().scaleX(1.18f).scaleY(1.18f).setDuration(200).withEndAction {
+                bot.animate().scaleX(1f).scaleY(1f).setDuration(350).start()
+            }.start()
+        }
         val text = value.take(500)
         var position = 0
         val tick = object : Runnable {

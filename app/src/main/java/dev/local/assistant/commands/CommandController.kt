@@ -85,6 +85,18 @@ class CommandController(
                         .putExtra(Intent.EXTRA_TEXT, raw.substringAfter("note ", text.removePrefix("create note "))))
                     reply("Opening a Google Keep note draft. Save it in Keep.")
                 }
+                text.startsWith("walk to ") || text.startsWith("cycle to ") || text.startsWith("transit to ") -> {
+                    val mode = when { text.startsWith("walk") -> "walking"; text.startsWith("cycle") -> "bicycling"; else -> "transit" }
+                    val destination = text.substringAfter("to ").trim()
+                    require(destination.isNotBlank())
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + URLEncoder.encode(destination,"UTF-8") + "&travelmode=$mode")))
+                    reply("Opening $mode directions to $destination")
+                }
+                text.startsWith("find on maps ") || text.startsWith("find nearby ") -> {
+                    val query = if (text.startsWith("find nearby ")) text.removePrefix("find nearby ") + " near me" else text.removePrefix("find on maps ")
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/search/?api=1&query=" + URLEncoder.encode(query,"UTF-8"))))
+                    reply("Searching Maps for $query")
+                }
                 text.startsWith("navigate to ") || text.startsWith("directions to ") -> {
                     val destination = text.substringAfter("to ")
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + URLEncoder.encode(destination,"UTF-8") + "&travelmode=driving")))

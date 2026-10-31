@@ -8,7 +8,8 @@ object CommandText {
     fun normalize(raw: String): String {
         val clean = raw.lowercase(Locale.US).replace(Regex("[,.!?]"), " ").trim()
             .replace(Regex("\\s+"), " ")
-        val text = (WakePhrase.command(clean) ?: clean)
+        // Direct button speech and existing command shortcuts may still include the bare name.
+        val text = (WakePhrase.command(clean) ?: clean.removePrefix("shoune "))
             .removePrefix("please ").removeSuffix(" please").trim()
         val light = Regex("^(?:turn |switch )?(on|off) (?:the )?(?:flash ?light|torch)$").matchEntire(text)
             ?: Regex("^(?:turn |switch )?(?:the )?(?:flash ?light|torch) (on|off)$").matchEntire(text)
