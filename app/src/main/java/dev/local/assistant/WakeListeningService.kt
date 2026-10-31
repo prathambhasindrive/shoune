@@ -103,7 +103,7 @@ class WakeListeningService : Service(), RecognitionListener {
         }
         if (intent?.action == LISTEN_NOW) {
             awakeUntil = android.os.SystemClock.elapsedRealtime() + 12000
-            respond("Yes ${dev.local.assistant.speech.AssistantPreferences.commander(this)}")
+            respond(greeting())
         }
         return START_STICKY
     }
@@ -120,7 +120,7 @@ class WakeListeningService : Service(), RecognitionListener {
             .setPublicVersion(Notification.Builder(this, CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now).setContentTitle("Shoune is listening")
                 .setContentText("Unlock to see details").build())
-            .addAction(Notification.Action.Builder(null, "Stop listening", stop).build()).build()
+            .addAction(Notification.Action.Builder(null, "Power off Shoune", stop).build()).build()
     }
 
     private fun update(message: String) {
@@ -153,7 +153,7 @@ class WakeListeningService : Service(), RecognitionListener {
         if (wakeCommand == null && now > awakeUntil) return
         if (wakeCommand == "") {
             awakeUntil = now + 12000
-            respond("Yes ${dev.local.assistant.speech.AssistantPreferences.commander(this)}")
+            respond(greeting())
             return
         }
         if (now - lastCommandAt < 500) return
@@ -212,6 +212,11 @@ class WakeListeningService : Service(), RecognitionListener {
         worker.execute { current?.close() }; worker.shutdown()
         stopForeground(STOP_FOREGROUND_REMOVE)
         super.onDestroy()
+    }
+
+    private fun greeting(): String {
+        val name = dev.local.assistant.speech.AssistantPreferences.commander(this)
+        return listOf("Hi $name", "Hey $name", "Yes $name", "I'm listening, $name", "What can I do for you, $name?").random()
     }
 
     companion object {

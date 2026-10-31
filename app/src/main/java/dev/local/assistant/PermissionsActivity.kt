@@ -27,6 +27,7 @@ class PermissionsActivity : Activity() {
             root.addView(Button(this).apply { text = if (enabled) "Manage" else "Enable"; isAllCaps = false; setOnClickListener { action() } })
         }
         label("Shoune permissions", 28f)
+        root.addView(Button(this).apply { text = "Command history"; setOnClickListener { open(Intent(this@PermissionsActivity, HistoryActivity::class.java)) } })
         label("You choose each permission. Android will ask you to approve access in its own screens.", 14f)
         root.addView(Button(this).apply { text = "Voice & commander name"; isAllCaps = false; setOnClickListener { open(Intent(this@PermissionsActivity, PersonalizationActivity::class.java)) } })
         fun runtime(title: String, detail: String, permission: String) = row(title, detail, allowed(permission)) {

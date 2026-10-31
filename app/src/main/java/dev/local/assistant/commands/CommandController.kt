@@ -38,6 +38,7 @@ class CommandController(
     fun execute(raw: String) {
         if (closed) return
         val text = CommandText.normalize(raw)
+        CommandHistory.add(this, raw)
         try {
             // While locked, permit only torch, time and stopping. Never speak private model answers.
             if (!isUnlocked() &&
@@ -61,6 +62,24 @@ class CommandController(
             }
             awaitingConfirmation = false
             when {
+                text == "command history" || text == "open history" -> startActivity(Intent(this, HistoryActivity::class.java))
+                text.startsWith("search for ") || text.startsWith("search browser for ") -> {
+                    val query = text.substringAfter("for ").trim()
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + URLEncoder.encode(query, "UTF-8"))))
+                    reply("Opening browser results for $query")
+                }
+                text == "open chatgpt" -> { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))); reply("Opening ChatGPT") }
+                text.startsWith("create note ") -> {
+                    startActivity(Intent(Intent.ACTION_SEND).setType("text/plain").setPackage("com.google.android.keep")
+                        .putExtra(Intent.EXTRA_TEXT, raw.substringAfter("note ", text.removePrefix("create note "))))
+                    reply("Opening a Google Keep note draft. Save it in Keep.")
+                }
+                text.startsWith("navigate to ") || text.startsWith("directions to ") -> {
+                    val destination = text.substringAfter("to ")
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + URLEncoder.encode(destination,"UTF-8") + "&travelmode=driving")))
+                    reply("Opening driving directions to $destination in Maps")
+                }
+                text == "read notifications" -> reply(ShouneNotificationService.current?.readSummary() ?: "Enable notification access in Permissions")
                 text.isBlank() -> { awaitingConfirmation = true; reply("I’m listening. What do you need?") }
                 text == "local models" || text == "open local models" -> startActivity(Intent(this, ModelsActivity::class.java))
                 text == "cancel answer" -> { LocalBrain.cancel(); reply("Answer cancelled.") }
